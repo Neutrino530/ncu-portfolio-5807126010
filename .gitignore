@@ -1,0 +1,125 @@
+# ============================================================
+# .gitignore —— 告诉 Git 哪些文件不必进入仓库
+# 适用：本学期课程作业（Python / Jupyter 为主，兼顾 R、MATLAB、Node）
+# ============================================================
+
+# ---- 1. Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境（体积巨大，且可随时重建）
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# 测试与覆盖率报告
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+
+# ---- 2. Jupyter Notebook ----
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+profile_default/
+ipython_config.py
+
+# ---- 3. R 语言 ----
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# ---- 4. MATLAB ----
+*.asv
+*.m~
+*.mat
+
+# ---- 5. Node / 前端 ----
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+.cache/
+.parcel-cache/
+
+# ---- 6. 数据与大型文件 ----
+# 原始数据、模型权重、压缩包通常很大，不应与代码混存
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.gz
+*.mp4
+*.avi
+*.mov
+*.pt
+*.pth
+*.h5
+*.hdf5
+*.parquet
+*.sqlite
+*.db
+
+# ---- 7. 环境变量与密钥 ----
+# 重要：一旦把密钥提交上去，泄露将无法挽回
+.env
+.env.*
+!.env.example
+secrets.json
+*.pem
+*.key
+config.local.*
+credentials.json
+
+# ---- 8. 编辑器与 IDE ----
+.vscode/*
+!.vscode/settings.example.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 9.  LaTeX 编译中间产物 ----
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# ---- 10. 日志文件 ----
+*.log
+logs/
