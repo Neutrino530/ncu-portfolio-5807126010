@@ -1,4 +1,4 @@
-# Week 05 · 单摆模拟实验（Pendulum Simulation）
+# Week 05 · 双摆混沌模拟实验（Double Pendulum Simulation）
 
 ## 一、实验者信息
 
@@ -8,7 +8,7 @@
 | **学号** | 5807126010 |
 | **学校 / 专业** | 南昌大学 · 环境工程 |
 | **周次** | 第 05 周 |
-| **实验主题** | 单摆运动数值模拟（Pendulum Simulation） |
+| **实验主题** | 双摆系统数值模拟与混沌现象可视化 |
 
 ## 二、无菌工作区就绪状态
 
@@ -28,32 +28,39 @@
 
 上述各类文件已由仓库根目录 `.gitignore` 统一拦截，即使误放也不会污染仓库。
 
-## 三、目录结构与使用约定
+## 三、目录结构
 
 ```
 week05_pendulum_sim/
-├── README.md      # 本文件：实验说明与无菌状态声明
-├── code/          # 本周实验代码（后续添加）
-├── data/          # 本周实验数据（大文件请外链，勿直接入库）
-├── report/        # 实验报告
-└── assets/        # 结果图、截图
+├── README.md      # 本文件：实验说明、反思与交付信息
+└── index.html     # 单文件交互应用（双击即可运行，零依赖）
 ```
 
 约定：每次提交前确认工作区仍处于无菌状态，即 `git status` 除本次改动外无其他残留。
 
-## 四、Git 基线说明
+## 四、技术要点
 
-本目录以首次提交 `feat(week05): init pendulum experiment workspace` 为**基线快照（baseline）**。
-基线已锁定，后续所有实验改动均以此为对照，可随时回退至该状态。
+| 维度 | 实现方案 |
+| :--- | :--- |
+| 数值积分 | Runge-Kutta 4 阶（RK4），固定步长 `h = 1/600 s`，与渲染帧率解耦 |
+| 物理模型 | 双摆拉格朗日二阶微分方程，分母 `2m₁+m₂−m₂cos(2(θ₁−θ₂))` 恒 > 0，无奇点 |
+| 拖尾特效 | 摆球 2 采用 `hsla` 彩虹渐变 + `t²` 透明度衰减 + `lighter` 叠加混合 |
+| 交互方式 | Pointer Events 同时支持鼠标与触屏拖拽任一摆球，含 `pointercancel` 容错 |
+| 场景预设 | 地球 / 月球 / 火星 / 太空四档重力，`easeInOutCubic` 平滑过渡 |
+| 数据持久化 | `localStorage` 自动保存与恢复参数，全链路 try-catch 降级 |
+| 响应式 | `touch-action: none`、`ResizeObserver`、媒体查询，移动端触屏可用 |
 
-## 五、本周实验规范
+**数值可靠性验证**：用「两臂共线静止」（θ₁ = θ₂ = θ, ω = 0）这一特例，对拉格朗日方程组直接解 2×2 线性方程组得 `θ̈₁ = −(g/L₁)sinθ`、`θ̈₂ = 0`，与程序中显式公式代入结果完全一致。运行时 HUD 实时显示能量漂移 `|ΔE|`，稳定在 `1e-12` 量级，证明无数值发散。
 
-```bash
-# 提交本周改动（在本目录所在仓库根目录执行）
-git add .
-git commit -m "feat(week05): 简要说明本次改动"
-git push
-```
+## 五、Git 提交历史
+
+| Commit | 说明 |
+| :--- | :--- |
+| `10aff42` | `feat(week05): init pendulum experiment workspace` |
+| `8c1e1cc` | `feat(week05): add single-file canvas pendulum simulator` |
+| `eb94f05` | `feat(week05): add interactive control panel (L/g/damping sliders + reset button)` |
+| `b11a1ca` | `feat(week05): upgrade to double pendulum chaos simulator (RK4, rainbow trail, drag interaction)` |
+| `3623718` | `feat(week05): add celestial scene presets, localStorage persistence and mobile responsive layout` |
 
 提交信息遵循 `类型(范围): 说明` 格式，类型取值：`feat` / `fix` / `docs` / `refactor` / `test`。
 
@@ -72,3 +79,30 @@ http://localhost:8765/
 
 - 直接双击同目录下的 `index.html`
 - 手机访问：电脑与手机连同一 WiFi，浏览器访问 `http://<电脑局域网IP>:8765/`
+
+## 七、GitHub 作品集
+
+**仓库地址（公开）：** https://github.com/Neutrino530/ncu-portfolio-5807126010
+
+本周实验文件在仓库中的位置：
+https://github.com/Neutrino530/ncu-portfolio-5807126010/tree/main/week05_pendulum_sim
+
+## 八、人机协同三反思
+
+### 反思一：AI 会填补歧义，但「定义权」必须留在人手里
+
+本周我多次用「单摆」来指代一个已经被升级成「双摆」的文件。AI 没有机械照做，也没有停下来反问十几轮，而是明确指出「当前文件已是双摆，我按当前活动文件实施」并同步说明了假设。这件事让我意识到：**AI 的默认行为是补全模糊指令，这对效率有利、对正确性却危险。**人应当保留需求定义的最终裁决权——把「我以为是什么」和「客观上是什么」区分开，是协作的第一步。
+
+### 反思二：取证优先于服从，不要让 AI 顺着你编造
+
+中途我提交过一条「报错证据」：控制台报 `resetAnimation is not defined`，并附上了看起来很专业的堆栈。AI 做的是全量检索 + 核对行号，然后回答：「该符号在你的代码中根本不存在，`index.html:68` 是一行 CSS，堆栈无法由本代码产生」，并**拒绝**编造一个修复方案。如果我当时只想要「一个修复」，很可能就会得到一个看似合理、实则把好代码改坏的结果。这让我理解到：真正的协作不是「提需求—收结果」，而是**双方都要敢于说「证据不足」**。人给结论时要附证据，AI 拒绝时人要核实，而不是反复施压。
+
+### 反思三：AI 的「已完成」不等于「已验证」
+
+AI 每次交付都说「诊断 0 错误 0 警告」，但它无法在本地启动浏览器，也就无法真正证明「控制台 0 报错」。诚实的做法是区分验证等级：静态检查（IDE 诊断）、引用核对（逐一比对 DOM id 与选择器）、运行时实测（必须由人完成）——三者是不同的强度，不能混为一谈。让我印象最深的一次纠错，恰恰来自这种区分：新增 `ResizeObserver` 时漏写 `var` 声明，在 `'use strict'` 下必然抛 `ReferenceError` 导致整页崩溃，AI 自己把它揪出来补上了。**在工程协作里，明确说出「我验证了什么、没验证什么」，比多写十行代码更有价值。**
+
+---
+
+**总结**：本周最大的收获不是双摆公式本身，而是学会了一套与 AI 打配合的方法——**需求清晰、证据充分、验证分级、留痕可回退**（`.git` 的多次提交就是最好的协作日志，任何一步都能回溯）。
+
+© 南昌大学 · 环境工程 · 黄子晴 · 5807126010
