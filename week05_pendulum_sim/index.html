@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>单摆简谐振动模拟器 · Week 05</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #1a1a24;
+    color: #c9d4e2;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    flex: 0 0 auto;
+    padding: 10px 18px;
+    border-bottom: 1px solid rgba(0, 229, 255, .12);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .5px; color: #e8f4ff; }
+  header h1 span { color: #00e5ff; }
+  header .meta { font-size: 12px; color: #6b7a8d; }
+
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+
+  #panel {
+    flex: 0 0 auto;
+    background: #171720;
+    border-top: 1px solid rgba(0, 229, 255, .12);
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 4px; min-width: 168px; }
+  .ctrl label { font-size: 12px; color: #8fa3b8; display: flex; justify-content: space-between; gap: 12px; }
+  .ctrl label b { color: #00e5ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; border-radius: 2px; outline: none;
+    background: linear-gradient(90deg, rgba(0,229,255,.25), rgba(0,229,255,.7));
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #00e5ff; box-shadow: 0 0 8px rgba(0,229,255,.7); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border: 0; border-radius: 50%;
+    background: #00e5ff; box-shadow: 0 0 8px rgba(0,229,255,.7); cursor: pointer;
+  }
+
+  .btns { display: flex; gap: 8px; align-items: center; }
+  button {
+    background: #22222e; color: #c9d4e2; cursor: pointer;
+    border: 1px solid rgba(0, 229, 255, .25); border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; font-family: inherit;
+  }
+  button:hover { background: #2a2a3a; border-color: rgba(0,229,255,.55); }
+  button.primary { background: #00e5ff; border-color: #00e5ff; color: #001018; font-weight: 600; }
+  .hint { font-size: 11px; color: #5c6a7d; margin-left: auto; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8fa3b8; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>单摆<span>简谐振动</span>模拟器</h1>
+  <div class="meta">南昌大学 · 环境工程 · 黄子晴 / 5807126010 · Week 05 · 初始 θ₀=45°，L=200px，g=9.8</div>
+</header>
+
+<div id="stage"><canvas id="sim"></canvas></div>
+
+<div id="panel">
+  <div class="ctrl">
+    <label>摆长 L <b><span id="vL">200</span> px</b></label>
+    <input id="sL" type="range" min="60" max="360" step="1" value="200" />
+  </div>
+  <div class="ctrl">
+    <label>重力 g <b><span id="vG">9.8</span> m/s²</b></label>
+    <input id="sG" type="range" min="1" max="25" step="0.1" value="9.8" />
+  </div>
+  <div class="ctrl">
+    <label>初始摆角 θ₀ <b><span id="vA">45</span>°</b></label>
+    <input id="sA" type="range" min="-170" max="170" step="1" value="45" />
+  </div>
+  <div class="ctrl">
+    <label>阻尼 b <b><span id="vD">0.00</span></b></label>
+    <input id="sD" type="range" min="0" max="1" step="0.01" value="0" />
+  </div>
+  <div class="btns">
+    <button id="btnRun" class="primary">暂停</button>
+    <button id="btnReset">重置</button>
+    <button id="btnClear">清除轨迹</button>
+    <label class="chk"><input id="chkTrail" type="checkbox" checked />轨迹</label>
+  </div>
+  <div class="hint">拖动摆球可设定角度 · 空格暂停 · R 重置</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var cv = document.getElementById('sim');
+  var ctx = cv.getContext('2d');
+  var stage = document.getElementById('stage');
+
+  // ---------- 参数（100px = 1m 的像素/物理单位换算） ----------
+  var PX_PER_M = 100;
+  var P = { L: 200, g: 9.8, theta0: 45, damping: 0, running: true, showTrail: true };
+
+  var theta = P.theta0 * Math.PI / 180;   // 当前摆角（弧度，从竖直向下起算）
+  var omega = 0;                          // 角速度 rad/s
+  var simTime = 0;                        // 已模拟时间 s
+  var trail = [];                         // 轨迹点
+  var MAX_TRAIL = 240;
+
+  // 实测周期：记录摆球同向过零点的间隔
+  var lastCross = -1, measuredT = 0;
+
+  var W = 0, H = 0, cx = 0, cy = 0;
+  var BOBS_R = 18;
+
+  // ---------- 画布尺寸（适配高分屏） ----------
+  function resize() {
+    var rect = stage.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = rect.width; H = rect.height;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = Math.max(70, H * 0.2);
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- 物理积分：θ'' = -(g/Lm)·sinθ - b·θ' ----------
+  function step(h) {
+    var Lm = P.L / PX_PER_M;
+    var alpha = -(P.g / Lm) * Math.sin(theta) - P.damping * omega;
+    var prev = theta;
+    omega += alpha * h;      // 半隐式欧拉，长时间运行能量稳定
+    theta += omega * h;
+    simTime += h;
+
+    // 同向（正向）过零点 → 实测一个完整周期
+    if (prev < 0 && theta >= 0 && omega > 0) {
+      if (lastCross >= 0) measuredT = simTime - lastCross;
+      lastCross = simTime;
+    }
+  }
+
+  function theoryPeriod() {
+    return 2 * Math.PI * Math.sqrt((P.L / PX_PER_M) / P.g); // 小角度近似 T = 2π√(L/g)
+  }
+
+  function energy() {
+    var Lm = P.L / PX_PER_M;
+    return 0.5 * Math.pow(Lm * omega, 2) + P.g * Lm * (1 - Math.cos(theta)); // m = 1 kg
+  }
+
+  function reset() {
+    theta = P.theta0 * Math.PI / 180;
+    omega = 0; simTime = 0; lastCross = -1; measuredT = 0;
+    trail.length = 0;
+  }
+
+  // ---------- 绘制 ----------
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var x = 0; x < W; x += 44) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+    for (var y = 0; y < H; y += 44) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawVignette() {
+    var g = ctx.createRadialGradient(cx, cy + 120, 40, cx, cy + 120, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(80,110,160,0.14)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawTrail() {
+    if (!P.showTrail || trail.length < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (var i = 1; i < trail.length; i++) {
+      var a = (i / trail.length) * 0.55;
+      ctx.strokeStyle = 'rgba(0,229,255,' + a.toFixed(3) + ')';
+      ctx.lineWidth = 1 + (i / trail.length) * 2.2;
+      ctx.beginPath();
+      ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+      ctx.lineTo(trail[i].x, trail[i].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawHUD() {
+    var Lm = P.L / PX_PER_M;
+    var lines = [
+      'θ = ' + (theta * 180 / Math.PI).toFixed(1) + '°     ω = ' + omega.toFixed(2) + ' rad/s',
+      'L = ' + Lm.toFixed(2) + ' m (' + P.L + ' px)     g = ' + P.g.toFixed(2) + ' m/s²',
+      'T理论 = ' + theoryPeriod().toFixed(3) + ' s     T实测 = ' + (measuredT ? measuredT.toFixed(3) + ' s' : '--'),
+      'E = ' + energy().toFixed(3) + ' J (m = 1 kg)     t = ' + simTime.toFixed(1) + ' s'
+    ];
+    ctx.save();
+    ctx.font = '12px Consolas, "SF Mono", Menlo, monospace';
+    var w = 0;
+    for (var i = 0; i < lines.length; i++) w = Math.max(w, ctx.measureText(lines[i]).width);
+    var pad = 10, lh = 18, bw = w + pad * 2, bh = lines.length * lh + pad * 2 - 4;
+    ctx.fillStyle = 'rgba(12,14,22,0.55)';
+    ctx.strokeStyle = 'rgba(0,229,255,0.14)';
+    roundRect(14, 14, bw, bh, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#9fb3c8';
+    for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], 14 + pad, 14 + pad + 12 + j * lh);
+    ctx.restore();
+  }
+
+  function draw() {
+    // 背景
+    ctx.fillStyle = '#1a1a24';
+    ctx.fillRect(0, 0, W, H);
+    drawGrid();
+    drawVignette();
+
+    var bx = cx + P.L * Math.sin(theta);
+    var by = cy + P.L * Math.cos(theta);
+
+    // 竖直参考线
+    ctx.save();
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = 'rgba(160,180,200,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + P.L + 46); ctx.stroke();
+    ctx.restore();
+
+    // 角度弧线 + 读数
+    var ar = 62;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,229,255,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ar, Math.PI / 2, Math.PI / 2 - theta, theta > 0);
+    ctx.stroke();
+    var mid = Math.PI / 2 - theta / 2;
+    ctx.fillStyle = 'rgba(0,229,255,0.85)';
+    ctx.font = '12px Consolas, monospace';
+    ctx.fillText((theta * 180 / Math.PI).toFixed(0) + '°',
+                 cx + (ar + 16) * Math.cos(mid) - 8,
+                 cy + (ar + 16) * Math.sin(mid) + 4);
+    ctx.restore();
+
+    drawTrail();
+
+    // 摆杆
+    var rod = ctx.createLinearGradient(cx, cy, bx, by);
+    rod.addColorStop(0, 'rgba(150,170,190,0.85)');
+    rod.addColorStop(1, 'rgba(0,229,255,0.9)');
+    ctx.save();
+    ctx.strokeStyle = rod;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.restore();
+
+    // 摆球外发光
+    var halo = ctx.createRadialGradient(bx, by, BOBS_R * 0.5, bx, by, BOBS_R * 3.4);
+    halo.addColorStop(0, 'rgba(0,229,255,0.20)');
+    halo.addColorStop(1, 'rgba(0,229,255,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(bx, by, BOBS_R * 3.4, 0, Math.PI * 2); ctx.fill();
+
+    // 摆球本体（微弱发光）
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,229,255,0.9)';
+    ctx.shadowBlur = 26;
+    var g = ctx.createRadialGradient(bx - 6, by - 7, 2, bx, by, BOBS_R);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.35, '#7df9ff');
+    g.addColorStop(1, '#0a6b8a');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(bx, by, BOBS_R, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // 悬点
+    ctx.save();
+    ctx.fillStyle = '#2b2f3d';
+    ctx.strokeStyle = 'rgba(0,229,255,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    drawHUD();
+  }
+
+  // ---------- 主循环：requestAnimationFrame 驱动物理 + 渲染 ----------
+  var last = 0, acc = 0, H_STEP = 1 / 240; // 固定物理步长，保证不同刷新率下结果一致
+
+  function frame(now) {
+    if (!last) last = now;
+    var dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.05) dt = 0.05; // 防止切后台回来后时间爆炸
+
+    if (P.running && !dragging) {
+      acc += dt;
+      var guard = 0;
+      while (acc >= H_STEP && guard++ < 120) { step(H_STEP); acc -= H_STEP; }
+    } else {
+      acc = 0;
+    }
+
+    if (P.showTrail && P.running) {
+      trail.push({ x: cx + P.L * Math.sin(theta), y: cy + P.L * Math.cos(theta) });
+      if (trail.length > MAX_TRAIL) trail.shift();
+    }
+
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- 交互：拖动摆球 ----------
+  var dragging = false;
+  function toCanvas(e) {
+    var r = cv.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    var p = toCanvas(e);
+    var bx = cx + P.L * Math.sin(theta), by = cy + P.L * Math.cos(theta);
+    if (Math.hypot(p.x - bx, p.y - by) < BOBS_R + 14) {
+      dragging = true; cv.classList.add('dragging');
+      cv.setPointerCapture(e.pointerId);
+    }
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var p = toCanvas(e);
+    var a = Math.atan2(p.x - cx, p.y - cy);      // x = L·sinθ, y = L·cosθ
+    var lim = 170 * Math.PI / 180;
+    theta = Math.max(-lim, Math.min(lim, a));
+    omega = 0;
+    trail.length = 0; lastCross = -1; measuredT = 0;
+    document.getElementById('sA').value = Math.round(theta * 180 / Math.PI);
+    document.getElementById('vA').textContent = Math.round(theta * 180 / Math.PI);
+    P.theta0 = Math.round(theta * 180 / Math.PI);
+  });
+  cv.addEventListener('pointerup', function (e) {
+    dragging = false; cv.classList.remove('dragging');
+    try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  // ---------- 控件绑定 ----------
+  function bind(id, valId, key, fmt, onAfter) {
+    var s = document.getElementById(id), v = document.getElementById(valId);
+    s.addEventListener('input', function () {
+      P[key] = parseFloat(s.value);
+      v.textContent = fmt(P[key]);
+      if (onAfter) onAfter();
+    });
+  }
+  bind('sL', 'vL', 'L', function (x) { return x.toFixed(0); }, function () { trail.length = 0; });
+  bind('sG', 'vG', 'g', function (x) { return x.toFixed(1); }, function () { lastCross = -1; measuredT = 0; });
+  bind('sA', 'vA', 'theta0', function (x) { return x.toFixed(0); }, reset);
+  bind('sD', 'vD', 'damping', function (x) { return x.toFixed(2); });
+
+  var btnRun = document.getElementById('btnRun');
+  btnRun.addEventListener('click', function () {
+    P.running = !P.running;
+    btnRun.textContent = P.running ? '暂停' : '继续';
+    btnRun.classList.toggle('primary', P.running);
+  });
+  document.getElementById('btnReset').addEventListener('click', reset);
+  document.getElementById('btnClear').addEventListener('click', function () { trail.length = 0; });
+  document.getElementById('chkTrail').addEventListener('change', function (e) {
+    P.showTrail = e.target.checked; trail.length = 0;
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') { e.preventDefault(); btnRun.click(); }
+    if (e.key === 'r' || e.key === 'R') reset();
+  });
+
+  // ---------- 启动 ----------
+  resize();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
