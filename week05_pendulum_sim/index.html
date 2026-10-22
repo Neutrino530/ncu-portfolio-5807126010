@@ -85,27 +85,23 @@
 <div id="panel">
   <div class="ctrl">
     <label>摆长 L <b><span id="vL">200</span> px</b></label>
-    <input id="sL" type="range" min="60" max="360" step="1" value="200" />
+    <input id="sL" type="range" min="100" max="350" step="1" value="200" />
   </div>
   <div class="ctrl">
     <label>重力 g <b><span id="vG">9.8</span> m/s²</b></label>
     <input id="sG" type="range" min="1" max="25" step="0.1" value="9.8" />
   </div>
   <div class="ctrl">
-    <label>初始摆角 θ₀ <b><span id="vA">45</span>°</b></label>
-    <input id="sA" type="range" min="-170" max="170" step="1" value="45" />
-  </div>
-  <div class="ctrl">
-    <label>阻尼 b <b><span id="vD">0.00</span></b></label>
-    <input id="sD" type="range" min="0" max="1" step="0.01" value="0" />
+    <label>阻尼 b <b><span id="vD">0.000</span></b></label>
+    <input id="sD" type="range" min="0" max="0.010" step="0.001" value="0" />
   </div>
   <div class="btns">
     <button id="btnRun" class="primary">暂停</button>
-    <button id="btnReset">重置</button>
+    <button id="btnReset">重置摆动</button>
     <button id="btnClear">清除轨迹</button>
     <label class="chk"><input id="chkTrail" type="checkbox" checked />轨迹</label>
   </div>
-  <div class="hint">拖动摆球可设定角度 · 空格暂停 · R 重置</div>
+  <div class="hint">拖动摆球可设定角度 · 空格暂停 · R 重置摆动（回到 45°）</div>
 </div>
 
 <script>
@@ -119,6 +115,7 @@
   // ---------- 参数（100px = 1m 的像素/物理单位换算） ----------
   var PX_PER_M = 100;
   var P = { L: 200, g: 9.8, theta0: 45, damping: 0, running: true, showTrail: true };
+  var THETA0 = 45; // 初始摆角固定为 45°，"重置摆动"始终精准回到该状态
 
   var theta = P.theta0 * Math.PI / 180;   // 当前摆角（弧度，从竖直向下起算）
   var omega = 0;                          // 角速度 rad/s
@@ -145,12 +142,14 @@
   }
   window.addEventListener('resize', resize);
 
-  // ---------- 物理积分：θ'' = -(g/Lm)·sinθ - b·θ' ----------
+  // ---------- 物理积分：θ'' = -(g/Lm)·sinθ，再叠加指数阻尼衰减 ----------
   function step(h) {
     var Lm = P.L / PX_PER_M;
-    var alpha = -(P.g / Lm) * Math.sin(theta) - P.damping * omega;
+    var alpha = -(P.g / Lm) * Math.sin(theta);
     var prev = theta;
-    omega += alpha * h;      // 半隐式欧拉，长时间运行能量稳定
+    omega += alpha * h;   // 半隐式欧拉，长时间运行能量稳定
+    // 阻尼：与帧率无关的指数衰减（b 为每 1/60 秒的速度衰减率），滑块即时生效
+    if (P.damping > 0) omega *= Math.pow(1 - P.damping, h * 60);
     theta += omega * h;
     simTime += h;
 
@@ -171,7 +170,8 @@
   }
 
   function reset() {
-    theta = P.theta0 * Math.PI / 180;
+    P.theta0 = THETA0;
+    theta = THETA0 * Math.PI / 180;   // 精准回到 45°
     omega = 0; simTime = 0; lastCross = -1; measuredT = 0;
     trail.length = 0;
   }
@@ -368,9 +368,6 @@
     theta = Math.max(-lim, Math.min(lim, a));
     omega = 0;
     trail.length = 0; lastCross = -1; measuredT = 0;
-    document.getElementById('sA').value = Math.round(theta * 180 / Math.PI);
-    document.getElementById('vA').textContent = Math.round(theta * 180 / Math.PI);
-    P.theta0 = Math.round(theta * 180 / Math.PI);
   });
   cv.addEventListener('pointerup', function (e) {
     dragging = false; cv.classList.remove('dragging');
@@ -388,8 +385,7 @@
   }
   bind('sL', 'vL', 'L', function (x) { return x.toFixed(0); }, function () { trail.length = 0; });
   bind('sG', 'vG', 'g', function (x) { return x.toFixed(1); }, function () { lastCross = -1; measuredT = 0; });
-  bind('sA', 'vA', 'theta0', function (x) { return x.toFixed(0); }, reset);
-  bind('sD', 'vD', 'damping', function (x) { return x.toFixed(2); });
+  bind('sD', 'vD', 'damping', function (x) { return x.toFixed(3); });
 
   var btnRun = document.getElementById('btnRun');
   btnRun.addEventListener('click', function () {
