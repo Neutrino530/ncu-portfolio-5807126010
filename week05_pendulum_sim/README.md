@@ -56,3 +56,19 @@ git push
 ```
 
 提交信息遵循 `类型(范围): 说明` 格式，类型取值：`feat` / `fix` / `docs` / `refactor` / `test`。
+
+## 六、运行与在线预览
+
+本实验为**单文件 HTML**（`index.html`），浏览器直接打开即可运行：无需安装、无需联网、无外部依赖。
+
+**在 VS Code 内置浏览器中打开：**
+
+1. 双击本文件（`README.md`）打开 Markdown 预览
+2. 在预览中 `Ctrl + 单击` 下方链接，即在 VS Code **内置浏览器（Simple Browser）**中打开
+
+http://localhost:8765/
+
+**其他打开方式：**
+
+- 直接双击同目录下的 `index.html`
+- 手机访问：电脑与手机连同一 WiFi，浏览器访问 `http://<电脑局域网IP>:8765/`
